@@ -49,7 +49,7 @@ PROOF_LOGS_DIR = os.path.join(PROOF_FOLDER, "logs")
 for folder in [PROOF_FOLDER, PROOF_IMAGES_DIR, PROOF_VIDEOS_DIR, PROOF_LOGS_DIR]:
     os.makedirs(folder, exist_ok=True)
 
-# Single Camera Hardware Worker Queue
+# Single Camera Hardware Worker Queue & Locks
 CAMERA_INDEX = 0
 VIDEO_DURATION = 6
 PHOTO_INTERVAL = 2
@@ -57,7 +57,12 @@ PHOTO_INTERVAL = 2
 incident_queue = queue.Queue()
 live_incidents = []
 
-# Live Telemetry State from ESP32 Sensor Hardware (Zero Fake Data)
+# Deduplication State Variables
+last_alert_active = False
+last_incident_timestamp = 0
+DEDUPLICATION_COOLDOWN = 20  # seconds cooldown for continuous motion triggers
+
+# Authoritative Telemetry State (Strict Zero-Fake Data)
 latest_telemetry = {
     "temperature": 30.4,
     "humidity": 70.8,
@@ -68,6 +73,8 @@ latest_telemetry = {
     "gps_status": "UNAVAILABLE",
     "alert_active": False,
     "alert_reason": "NORMAL",
+    "last_raw_timestamp": time.time(),
+    "connection_status": "WAITING_FOR_TELEMETRY",
     "last_updated": datetime.now().strftime("%H:%M:%S IST")
 }
 
@@ -154,7 +161,7 @@ def run_roboflow_ai_on_captured_photo(image_path):
     return {}, ""
 
 # ============================================================
-# DUAL-PHOTO & VIDEO CAMERA WORKER THREAD WITH DUAL AI PIPELINE
+# SINGLE CAMERA WORKER THREAD WITH FILE VERIFICATION & STATE MACHINE
 # ============================================================
 def camera_queue_worker():
     """Single camera owner thread processing queued incident evidence captures."""
@@ -176,10 +183,10 @@ def camera_queue_worker():
             readable_date = now.strftime("%A, %d %B %Y")
             readable_time = now.strftime("%I:%M:%S %p")
 
-            # Update incident state to CAPTURING_EVIDENCE
+            # State Transition: CAPTURING_PHOTO_1
             for inc in live_incidents:
                 if inc["id"] == inc_id:
-                    inc["status"] = "CAPTURING_EVIDENCE"
+                    inc["status"] = "CAPTURING_PHOTO_1"
                     break
 
             # Open single webcam handle
@@ -211,6 +218,12 @@ def camera_queue_worker():
                 cv2.imwrite(photo1_sub, frame1)
                 print(f"📸 Photo 1 saved -> {photo1_name} ({frame_w}x{frame_h})")
 
+            # State Transition: CAPTURING_PHOTO_2
+            for inc in live_incidents:
+                if inc["id"] == inc_id:
+                    inc["status"] = "CAPTURING_PHOTO_2"
+                    break
+
             time.sleep(PHOTO_INTERVAL)
 
             # PHOTO 2
@@ -223,6 +236,12 @@ def camera_queue_worker():
                 cv2.imwrite(photo2_path, frame2)
                 cv2.imwrite(photo2_sub, frame2)
                 print(f"📸 Photo 2 saved -> {photo2_name} ({frame_w}x{frame_h})")
+
+            # State Transition: RECORDING_VIDEO
+            for inc in live_incidents:
+                if inc["id"] == inc_id:
+                    inc["status"] = "RECORDING_VIDEO"
+                    break
 
             # RECORD 6-SECOND VIDEO (.avi & .mp4)
             video_name_avi = f"ForestAlert_{timestamp}_Video.avi"
@@ -263,10 +282,10 @@ def camera_queue_worker():
                     with open(video_path_mp4, "rb") as rf, open(video_sub_mp4, "wb") as wf: wf.write(rf.read())
             except Exception: pass
 
-            # Update incident state to EVIDENCE_COMPLETE / ANALYZING
+            # State Transition: SAVING_LOG / PROCESSING_AI
             for inc in live_incidents:
                 if inc["id"] == inc_id:
-                    inc["status"] = "ANALYZING"
+                    inc["status"] = "PROCESSING_AI"
                     break
 
             # AUTOMATED DUAL-PHOTO ROBOFLOW AI PIPELINE (BOTH PHOTO 1 AND PHOTO 2)
@@ -305,7 +324,7 @@ def camera_queue_worker():
                     with open(os.path.join(PROOF_IMAGES_DIR, ai_p2_filename), "wb") as f: f.write(base64.b64decode(b64_data))
                 except Exception: pass
 
-            # Extract exact Latitude & Longitude from sensor snapshot (Zero Hardcoded Fallback)
+            # Extract exact Latitude & Longitude from sensor snapshot (Strict Zero-Fake Rule)
             inc_lat = sensor_snapshot.get("lat") if isinstance(sensor_snapshot, dict) else None
             inc_lng = sensor_snapshot.get("lng") if isinstance(sensor_snapshot, dict) else None
             if inc_lat == 0: inc_lat = None
@@ -349,6 +368,14 @@ Video: {video_name_mp4}
 
             print("📄 Incident log saved ->", log_name)
 
+            # PHASE 8: EVIDENCE FILE VERIFICATION
+            p1_valid = os.path.exists(photo1_path) and os.path.getsize(photo1_path) > 1000
+            p2_valid = os.path.exists(photo2_path) and os.path.getsize(photo2_path) > 1000
+            vid_valid = os.path.exists(video_path_mp4) and os.path.getsize(video_path_mp4) > 1000
+            log_valid = os.path.exists(log_path) and os.path.getsize(log_path) > 10
+
+            final_status = "ANALYSIS_COMPLETE" if (p1_valid and p2_valid and vid_valid and log_valid) else "EVIDENCE_PARTIAL"
+
             # Update Incident record with calculated severity & final state
             temp = sensor_snapshot.get("temperature", 30.0) if isinstance(sensor_snapshot, dict) else 30.0
             smoke = sensor_snapshot.get("smoke", 200) if isinstance(sensor_snapshot, dict) else 200
@@ -358,7 +385,7 @@ Video: {video_name_mp4}
 
             for inc in live_incidents:
                 if inc["id"] == inc_id:
-                    inc["status"] = "ANALYSIS_COMPLETE"
+                    inc["status"] = final_status
                     inc["severity"] = sev_level
                     inc["badgeBg"] = badge_cls
                     inc["lat"] = inc_lat
@@ -374,7 +401,7 @@ Video: {video_name_mp4}
                     inc["video_name"] = video_name_mp4
                     break
 
-            print(f"✅ INCIDENT #{inc_id} COMPLETE | GPS: {loc_summary} | Severity: {sev_level}\n")
+            print(f"✅ INCIDENT #{inc_id} COMPLETE | File Verification: {final_status} | GPS: {loc_summary} | Severity: {sev_level}\n")
             incident_queue.task_done()
         except Exception as err:
             print(f"❌ ERROR in camera_queue_worker: {err}")
@@ -383,6 +410,17 @@ threading.Thread(target=camera_queue_worker, daemon=True).start()
 
 def trigger_new_incident_immediately(sensor_dict, reason):
     """Instantly creates incident in state and queues evidence worker without blocking Flask."""
+    global last_alert_active, last_incident_timestamp
+
+    now_time = time.time()
+    # Phase 20: PIR Motion Deduplication
+    if last_alert_active and (now_time - last_incident_timestamp < DEDUPLICATION_COOLDOWN):
+        print(f"[DEDUPLICATION NOTE] Suppressing duplicate incident trigger for continuous alert ({reason})")
+        return
+
+    last_alert_active = True
+    last_incident_timestamp = now_time
+
     inc_id = f"INC-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
     readable_time = datetime.now().strftime("%I:%M:%S %p")
     
@@ -414,14 +452,28 @@ def trigger_new_incident_immediately(sensor_dict, reason):
     print(f"\n⚡ INSTANT INCIDENT CREATED -> {inc_id} ({reason}) | GPS: {gps_str} | Queueing camera worker...")
     incident_queue.put((inc_id, sensor_dict, reason))
 
-# Serial Monitoring Thread for COM6 (Parsing Arduino Serial Lines)
+# Serial Monitoring Thread for ESP32 (Parsing Arduino Serial Lines)
 def serial_monitoring_thread():
+    global last_alert_active
     if not serial: return
+    
+    ser = None
+    target_port = "COM6"
+    for p in ["COM6", "COM4", "COM3"]:
+        try:
+            ser = serial.Serial(p, 115200, timeout=1)
+            target_port = p
+            break
+        except Exception: pass
+
+    if not ser:
+        print("[SERIAL NOTE] No active COM port available (HTTP API Telemetry endpoint is ready)")
+        return
+
     try:
-        ser = serial.Serial("COM6", 115200, timeout=1)
         time.sleep(2)
         print("\n==========================================")
-        print("🌲 ForestNet Monitoring Started on COM6 @ 115200 baud")
+        print(f"🌲 ForestNet Monitoring Started on {target_port} @ 115200 baud")
         print("==========================================")
 
         alert_active = False
@@ -468,6 +520,7 @@ def serial_monitoring_thread():
 
                 if "System Reset" in line or "Monitoring Resumed" in line:
                     alert_active = False
+                    last_alert_active = False
                     trigger_reason = "NORMAL"
             time.sleep(0.01)
     except Exception as e:
@@ -661,7 +714,7 @@ def analyze_incident(ts_key):
 
 @app.route("/api/telemetry", methods=["GET", "POST"])
 def telemetry():
-    global latest_telemetry
+    global latest_telemetry, last_alert_active
     if request.method == "POST":
         try:
             data = request.get_json(force=True, silent=True) or request.form.to_dict()
@@ -684,6 +737,7 @@ def telemetry():
             alert_active = bool(data.get("alert", data.get("alert_active", False)))
             reason = str(data.get("reason", data.get("trigger_reason", "NORMAL")))
 
+            now_ts = time.time()
             latest_telemetry.update({
                 "temperature": round(temp, 1),
                 "humidity": round(hum, 1),
@@ -694,8 +748,14 @@ def telemetry():
                 "gps_status": gps_st,
                 "alert_active": alert_active,
                 "alert_reason": reason,
+                "last_raw_timestamp": now_ts,
+                "connection_status": "CONNECTED",
                 "last_updated": datetime.now().strftime("%H:%M:%S IST")
             })
+
+            # Reset deduplication lock if alert is cleared
+            if not alert_active and reason in ["NORMAL", "CLEAR"]:
+                last_alert_active = False
 
             if alert_active or reason not in ["NORMAL", "CLEAR"]:
                 trigger_new_incident_immediately(latest_telemetry, reason)
@@ -703,6 +763,10 @@ def telemetry():
             return jsonify({"status": "success", "received": latest_telemetry}), 200
         except Exception as e:
             return jsonify({"error": str(e)}), 500
+
+    # GET Telemetry — Calculate real-time connection status based on 10s timestamp cutoff
+    sec_since_update = time.time() - latest_telemetry.get("last_raw_timestamp", 0)
+    latest_telemetry["connection_status"] = "CONNECTED" if sec_since_update < 12 else "DISCONNECTED"
 
     return jsonify(latest_telemetry), 200
 
