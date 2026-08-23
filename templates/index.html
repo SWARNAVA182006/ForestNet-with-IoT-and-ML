@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>ForestNet Command Dashboard &amp; AI Insights</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<style data-purpose="custom-styles">
+    @import url('https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&display=swap');
+
+    :root {
+      --bg-dark: #0a0a0a;
+      --panel-bg: #131313;
+      --panel-border: #2a2a2a;
+      --text-main: #f3f4f6;
+      --text-muted: #9ca3af;
+      --accent-green: #22c55e;
+      --accent-red: #ef4444;
+      --accent-orange: #f97316;
+      --accent-yellow: #eab308;
+      --accent-blue: #3b82f6;
+      --accent-purple: #a855f7;
+    }
+
+    body {
+      font-family: 'Geist', sans-serif;
+      background-color: var(--bg-dark);
+      color: var(--text-main);
+    }
+
+    .panel {
+      background-color: var(--panel-bg);
+      border: 1px solid var(--panel-border);
+      border-radius: 0.5rem;
+    }
+
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: var(--bg-dark);
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #3f3f46;
+      border-radius: 3px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #52525b;
+    }
+    
+    .nav-item {
+      transition: all 0.2s ease;
+    }
+    .nav-item:hover, .nav-item.active {
+      background-color: rgba(34, 197, 94, 0.1);
+      color: var(--accent-green);
+      border-left-color: var(--accent-green);
+    }
+    
+    .map-overlay {
+      background: linear-gradient(to bottom, rgba(19,19,19,0.8), rgba(19,19,19,0));
+    }
+  </style>
+</head>
+<body class="flex h-screen overflow-hidden text-sm">
+<!-- BEGIN: Sidebar Navigation -->
+<aside class="w-64 flex flex-col border-r border-[#2a2a2a] bg-[#131313] shrink-0" data-purpose="sidebar-navigation">
+<!-- Brand Logo -->
+<div class="p-6">
+<div class="flex items-center gap-2 text-xl font-bold tracking-tight text-white">
+<svg class="w-6 h-6 text-green-500" fill="none" stroke="currentColor" viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 21V9M12 9l-4 4M12 9l4 4M6 21v-4a2 2 0 012-2h8a2 2 0 012 2v4" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+        FOREST<span class="text-green-500">NET</span>
+</div>
+<p class="text-xs text-gray-400 mt-2 leading-relaxed">Intelligent Forest<br/>Incident Detection &amp;<br/>Response System</p>
+</div>
+<!-- Navigation Links -->
+<nav class="flex-1 overflow-y-auto py-2">
+<ul class="space-y-1">
+<li>
+<a class="nav-item active flex items-center gap-3 px-6 py-2.5 border-l-2 border-green-500 text-green-500 bg-green-500/10 font-medium" href="#">
+<svg class="w-5 h-5" fill="none" stroke="currentColor" viewbox="0 0 24 24"><path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+            Overview
+          </a>
+</li>
+<li>
+<a class="nav-item flex items-center gap-3 px-6 py-2.5 border-l-2 border-transparent text-gray-400 hover:text-gray-200" href="#live-map-section">
+<svg class="w-5 h-5" fill="none" stroke="currentColor" viewbox="0 0 24 24"><path d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+            Live Map
+          </a>
+</li>
+<li>
+<a class="nav-item flex items-center gap-3 px-6 py-2.5 border-l-2 border-transparent text-gray-400 hover:text-gray-200" href="#ai-insights-section">
+<svg class="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewbox="0 0 24 24"><path d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+            AI Detection &amp; Insights
+          </a>
+</li>
+<li>
+<a class="nav-item flex items-center gap-3 px-6 py-2.5 border-l-2 border-transparent text-gray-400 hover:text-gray-200" href="#incidents-section">
+<svg class="w-5 h-5" fill="none" stroke="currentColor" viewbox="0 0 24 24"><path d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+            Alerts Log
+          </a>
+</li>
+</ul>
+</nav>
+<!-- System Status & User Profile -->
+<div class="p-6 border-t border-[#2a2a2a] space-y-4">
+<div class="panel p-3">
+<p class="text-xs text-gray-400 mb-1">System Status</p>
+<div class="flex items-center gap-2">
+<div class="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]"></div>
+<span class="text-green-500 font-medium text-xs">Roboflow Model Backend Live</span>
+</div>
+</div>
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded bg-gray-800 flex items-center justify-center border border-gray-700">
+<svg class="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewbox="0 0 24 24"><path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+</div>
+<div>
+<p class="font-medium text-sm">17:42:31 IST</p>
+<p class="text-xs text-gray-500">23 Aug 2026</p>
+</div>
+</div>
+<div class="flex items-center gap-3 pt-2">
+<div class="w-10 h-10 rounded bg-green-900/50 flex items-center justify-center border border-green-800 text-green-500">
+<svg class="w-5 h-5" fill="none" stroke="currentColor" viewbox="0 0 24 24"><path d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+</div>
+<div>
+<p class="font-medium text-sm">Forest Admin</p>
+<p class="text-xs text-gray-500">Administrator</p>
+</div>
+</div>
+</div>
+</aside>
+<!-- END: Sidebar Navigation -->
+
+<!-- BEGIN: Main Content Area -->
+<main class="flex-1 flex flex-col h-screen overflow-hidden" data-purpose="main-dashboard-area">
+<!-- BEGIN: Top Header -->
+<header class="h-16 border-b border-[#2a2a2a] bg-[#131313] flex items-center justify-between px-6 shrink-0" data-purpose="top-header">
+<div class="flex items-center gap-4">
+<h1 class="text-xl font-semibold">Command Dashboard</h1>
+<div class="flex items-center gap-2 px-3 py-1 bg-green-500/10 border border-green-500/20 rounded-full">
+<div class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
+<span class="text-xs text-green-500 font-medium">Live Monitoring</span>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<select class="bg-[#1a1a1a] border border-[#333] text-sm rounded-md px-3 py-1.5 focus:ring-green-500 focus:border-green-500">
+<option>All Regions</option>
+</select>
+<div class="flex items-center gap-2 bg-[#1a1a1a] border border-[#333] rounded-md px-3 py-1.5 text-sm">
+<svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewbox="0 0 24 24"><path d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+          23 Aug 2026
+</div>
+</div>
+</header>
+<!-- END: Top Header -->
+
+<!-- BEGIN: Dashboard Scrollable Content -->
+<div class="flex-1 overflow-y-auto p-4 md:p-6 bg-black space-y-6" data-purpose="dashboard-widgets">
+
+<!-- BEGIN: Global Metrics -->
+<section class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-8 gap-4" data-purpose="global-metrics-cards">
+<div class="panel p-4 flex flex-col justify-between border-red-900/50 relative overflow-hidden group col-span-2">
+<div class="absolute inset-0 bg-red-500/5 opacity-50"></div>
+<div class="relative z-10 flex justify-between items-start mb-2">
+<span class="text-xs text-gray-400 group-hover:text-red-400 transition-colors">Active Incidents</span>
+<svg class="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewbox="0 0 24 24"><path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+</div>
+<div class="relative z-10">
+<div class="text-3xl font-bold text-red-500 mb-1" id="metric-active">7</div>
+<div class="text-xs text-red-400">Critical: 2</div>
+</div>
+</div>
+<div class="panel p-4 flex flex-col justify-between border-yellow-900/50 bg-yellow-500/5 col-span-2">
+<div class="flex justify-between items-start mb-2">
+<span class="text-xs text-gray-400">Alerts Today</span>
+<svg class="w-5 h-5 text-yellow-500" fill="none" stroke="currentColor" viewbox="0 0 24 24"><path d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+</div>
+<div>
+<div class="text-3xl font-bold text-yellow-500 mb-1" id="metric-alerts">23</div>
+<div class="text-xs text-yellow-500 flex items-center">Live Inferences</div>
+</div>
+</div>
+<div class="panel p-4 flex flex-col justify-between col-span-2">
+<div class="flex justify-between items-start mb-2">
+<span class="text-xs text-gray-400">Avg. Temperature</span>
+<svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewbox="0 0 24 24"><path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+</div>
+<div>
+<div class="text-3xl font-bold text-white mb-1">30.4°C</div>
+<div class="text-xs text-red-400 flex items-center">Normal</div>
+</div>
+</div>
+<div class="panel p-4 flex flex-col justify-between col-span-2">
+<div class="flex justify-between items-start mb-2">
+<span class="text-xs text-gray-400">Smoke Level (Avg.)</span>
+<svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewbox="0 0 24 24"><path d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+</div>
+<div>
+<div class="text-3xl font-bold text-white mb-1">231 <span class="text-sm font-normal text-gray-400">ppm</span></div>
+<div class="text-xs text-green-400 flex items-center">Monitored</div>
+</div>
+</div>
+</section>
+<!-- END: Global Metrics -->
+
+<!-- BEGIN: AI DETECTION & ML INSIGHTS SECTION -->
+<section id="ai-insights-section" class="panel p-6 border-green-500/40">
+  <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+    <div>
+      <h2 class="text-lg font-bold text-white flex items-center gap-2">
+        <svg class="w-6 h-6 text-green-500" fill="none" stroke="currentColor" viewbox="0 0 24 24"><path d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+        AI Detection &amp; ML Insights Engine
+      </h2>
+      <p class="text-xs text-gray-400 mt-1">Upload any image or video file to run instant threat prediction through our Roboflow ML Model Workflow backend.</p>
+    </div>
+
+    <button onclick="document.getElementById('ai-file-input').click()" class="px-5 py-2.5 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-md text-xs flex items-center gap-2 transition-all shadow-[0_0_15px_rgba(34,197,94,0.4)] shrink-0">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewbox="0 0 24 24"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+      Upload File &amp; Predict ML Model
+    </button>
+    <input type="file" id="ai-file-input" class="hidden" accept="image/*,video/*" onchange="uploadAndPredict(event)">
+  </div>
+
+  <!-- Drag and Drop Dropzone -->
+  <div class="panel p-6 border-dashed border-gray-700 bg-gray-900/40 text-center cursor-pointer hover:border-green-500 transition-colors mb-6" onclick="document.getElementById('ai-file-input').click()">
+    <svg class="w-10 h-10 text-green-500 mx-auto mb-2" fill="none" stroke="currentColor" viewbox="0 0 24 24"><path d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+    <p class="text-sm font-semibold text-gray-200">Click to Select Image or Video to Run ML Model</p>
+    <p class="text-xs text-gray-400 mt-1">Supports JPG, PNG, WEBP, MP4, AVI</p>
+  </div>
+
+  <!-- Loading State -->
+  <div id="ai-loading" class="hidden text-center py-6">
+    <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-green-500 mb-2"></div>
+    <p class="text-sm text-green-400 font-medium">Running Roboflow AI Inference &amp; Spatial Threat Analysis...</p>
+  </div>
+
+  <!-- DUAL DISPLAY PANELS (Original Media vs ML Prediction Result) -->
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+    <!-- Original Media Panel -->
+    <div class="panel p-4 flex flex-col">
+      <div class="flex justify-between items-center mb-3">
+        <span class="text-xs font-bold uppercase tracking-wider text-gray-400">1. Original Input File</span>
+        <span class="text-xs text-gray-500" id="ai-orig-name">No File Selected</span>
+      </div>
+      <div class="flex-1 bg-black rounded border border-gray-800 flex items-center justify-center min-h-[300px] overflow-hidden">
+        <img id="ai-orig-img" class="max-h-[360px] object-contain hidden" src="" alt="Original Input">
+        <span id="ai-orig-placeholder" class="text-xs text-gray-600">Original Media Preview</span>
+      </div>
+    </div>
+
+    <!-- ML Predicted Result Panel -->
+    <div class="panel p-4 flex flex-col border-green-500/40">
+      <div class="flex justify-between items-center mb-3">
+        <span class="text-xs font-bold uppercase tracking-wider text-green-400 flex items-center gap-1.5">
+          <svg class="w-4 h-4 text-green-500" fill="none" stroke="currentColor" viewbox="0 0 24 24"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+          2. ML Annotated Detection Result
+        </span>
+        <span class="text-xs px-2.5 py-0.5 rounded bg-green-900/50 text-green-300 border border-green-700" id="ai-status">Awaiting Upload</span>
+      </div>
+      <div class="flex-1 bg-black rounded border border-gray-800 flex items-center justify-center min-h-[300px] overflow-hidden">
+        <img id="ai-pred-img" class="max-h-[360px] object-contain hidden" src="" alt="ML Detection Output">
+        <span id="ai-pred-placeholder" class="text-xs text-gray-600">Roboflow Bounding Boxes &amp; Threat Labels Render Here</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- AI Prediction Signals & Objects Table -->
+  <div id="ai-results-details" class="mt-6 panel p-5 hidden">
+    <h3 class="text-xs font-semibold uppercase tracking-wider text-gray-300 mb-3">Triggered Alert Signals &amp; Object Detections</h3>
+    <div id="ai-badges" class="flex flex-wrap gap-2 mb-4"></div>
+    <div class="overflow-x-auto">
+      <table class="w-full text-left text-xs">
+        <thead class="bg-gray-900 text-gray-400 border-b border-gray-800">
+          <tr>
+            <th class="p-2.5">Category</th>
+            <th class="p-2.5">Detected Class</th>
+            <th class="p-2.5">Confidence</th>
+            <th class="p-2.5">Bounding Box Coordinates</th>
+          </tr>
+        </thead>
+        <tbody id="ai-detection-table" class="divide-y divide-gray-800 text-gray-200"></tbody>
+      </table>
+    </div>
+  </div>
+</section>
+<!-- END: AI DETECTION SECTION -->
+
+<!-- BEGIN: Dominant Mid Section (Map & Table) -->
+<section class="flex flex-col xl:flex-row gap-6 h-[800px]" id="live-map-section">
+<!-- Live Incidence Map -->
+<div class="panel flex-1 flex flex-col relative">
+<div class="p-4 border-b border-[#2a2a2a] flex justify-between items-center z-10 bg-[#131313]/90 backdrop-blur">
+<h2 class="text-sm font-semibold tracking-wider text-white uppercase">Live Incidence Map</h2>
+<div class="flex items-center gap-4 text-xs font-medium">
+<span class="flex items-center gap-1.5"><div class="w-2.5 h-2.5 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.6)] animate-pulse"></div> Fire</span>
+<span class="flex items-center gap-1.5"><div class="w-2.5 h-2.5 rounded-full bg-orange-500"></div> Smoke</span>
+<span class="flex items-center gap-1.5"><div class="w-2.5 h-2.5 rounded-full bg-blue-500"></div> Human</span>
+<span class="flex items-center gap-1.5"><div class="w-2.5 h-2.5 rounded-full bg-purple-500"></div> Animal</span>
+</div>
+</div>
+<div class="flex-1 relative overflow-hidden bg-[#0a0a0a]">
+<div class="absolute inset-0 bg-cover bg-center opacity-70 mix-blend-luminosity" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuD3dZApvE4JDsBftd9IxYbyRdWupF9KrLjWLAPKaAroP9i5QE-ZT4ZFNcJnyVLSN_deyjlKwQqk3L_iXvPtZLHgVPwhdaiJf2-UaamyAVS1HlyOMgV5w3h6UXLnt5IshOmidtZmQrytyB7ZGfi6onFSnlMo0tN5QElLbusBjj8qSHDOQXHT8SJZGJaLSx1bSuGh9yTpFmcjT7A7O1DPDN69JeuhpT8Ftj4AEwH7ycqgbIJqJEmw3qNbIZBWZh8dHKSXuA');"></div>
+<div class="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGcgc3Ryb2tlPSIjMjIyIiBzdHJva2Utd2lkdGg9IjEiIGZpbGw9Im5vbmUiPjxwYXRoIGQ9Ik0wIDQwaDQwTTAgMHY0MCIvPjwvZz48L3N2Zz4=')] opacity-20"></div>
+<div class="absolute left-6 top-6 bg-[#131313]/90 backdrop-blur border border-[#2a2a2a] rounded-lg overflow-hidden flex flex-col z-10 shadow-lg">
+<button class="w-10 h-10 flex items-center justify-center border-b border-[#2a2a2a] hover:bg-[#2a2a2a] text-gray-400 transition-colors">+</button>
+<button class="w-10 h-10 flex items-center justify-center hover:bg-[#2a2a2a] text-gray-400 transition-colors">-</button>
+</div>
+<div class="absolute top-1/3 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-[#131313]/95 backdrop-blur border border-red-500/50 rounded-lg shadow-[0_0_30px_rgba(239,68,68,0.15)] p-5 w-80 z-20">
+<div class="flex items-center gap-3 mb-4">
+<div class="w-10 h-10 rounded-full bg-red-500/20 flex items-center justify-center text-red-500 animate-pulse border border-red-500/30">
+<svg class="w-6 h-6" fill="currentColor" viewbox="0 0 20 20"><path clip-rule="evenodd" d="M12.395 2.553a1 1 0 00-1.45-.385c-.345.23-.614.558-.822.88-.214.33-.403.713-.57 1.116-.334.804-.614 1.768-.84 2.734a31.365 31.365 0 00-.613 3.58 2.64 2.64 0 01-.945-1.067c-.328-.68-.398-1.534-.398-2.654A1 1 0 005.05 6.05 6.981 6.981 0 003 11a7 7 0 1011.95-4.95c-.592-.591-.98-.985-1.348-1.467-.363-.476-.724-1.063-1.207-2.03zM12.12 15.12A3 3 0 017 13s.879.5 2.5.5c0-1 .5-4 1.25-4.5.5 1 .786 1.293 1.371 1.879A2.99 2.99 0 0113 13a2.99 2.99 0 01-.879 2.121z" fill-rule="evenodd"></path></svg>
+</div>
+<div>
+<h3 class="text-red-500 font-bold text-base tracking-wide">CRITICAL - Forest Fire</h3>
+</div>
+</div>
+<div class="space-y-3 text-sm">
+<div class="flex justify-between border-b border-[#2a2a2a] pb-2">
+<span class="text-gray-500">Location</span>
+<span class="font-mono text-gray-200">12.821466° N, 80.043° E</span>
+</div>
+<div class="flex justify-between border-b border-[#2a2a2a] pb-2">
+<span class="text-gray-500">Time</span>
+<span class="text-gray-200">17:42:31 IST</span>
+</div>
+<div class="flex justify-between border-b border-[#2a2a2a] pb-2">
+<span class="text-gray-500">Severity</span>
+<span class="text-red-500 font-bold">96.4%</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Live Incidents Table -->
+<div class="panel w-full xl:w-[600px] flex flex-col shrink-0" id="incidents-section">
+<div class="p-5 border-b border-[#2a2a2a] flex justify-between items-center bg-[#131313]">
+<h2 class="text-sm font-semibold tracking-wider text-white uppercase flex items-center gap-2">
+<span class="relative flex h-3 w-3">
+<span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+<span class="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
+</span>
+              Live Incidents Log
+            </h2>
+</div>
+<div class="flex-1 overflow-auto bg-[#0a0a0a]">
+<table class="w-full text-left border-collapse text-sm">
+<thead class="sticky top-0 bg-[#131313] z-10 border-b border-[#2a2a2a]">
+<tr>
+<th class="py-4 px-5 text-gray-400 font-medium whitespace-nowrap text-xs uppercase tracking-wider">Type / Time</th>
+<th class="py-4 px-5 text-gray-400 font-medium whitespace-nowrap text-xs uppercase tracking-wider">Location</th>
+<th class="py-4 px-5 text-gray-400 font-medium whitespace-nowrap text-xs uppercase tracking-wider">Severity</th>
+<th class="py-4 px-5 text-gray-400 font-medium whitespace-nowrap text-xs uppercase tracking-wider text-right">Status</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-[#1a1a1a]" id="incidents-log">
+<tr class="hover:bg-[#1a1a1a] transition-colors border-l-4 border-l-red-500 bg-red-500/5">
+<td class="py-4 px-5">
+<div class="flex items-center gap-3">
+<div class="p-2 rounded bg-red-500/10 text-red-500">
+<svg class="w-5 h-5" fill="currentColor" viewbox="0 0 20 20"><path clip-rule="evenodd" d="M12.395 2.553a1 1 0 00-1.45-.385c-.345.23-.614.558-.822.88-.214.33-.403.713-.57 1.116-.334.804-.614 1.768-.84 2.734a31.365 31.365 0 00-.613 3.58 2.64 2.64 0 01-.945-1.067c-.328-.68-.398-1.534-.398-2.654A1 1 0 005.05 6.05 6.981 6.981 0 003 11a7 7 0 1011.95-4.95c-.592-.591-.98-.985-1.348-1.467-.363-.476-.724-1.063-1.207-2.03zM12.12 15.12A3 3 0 017 13s.879.5 2.5.5c0-1 .5-4 1.25-4.5.5 1 .786 1.293 1.371 1.879A2.99 2.99 0 0113 13a2.99 2.99 0 01-.879 2.121z" fill-rule="evenodd"></path></svg>
+</div>
+<div>
+<div class="font-medium text-gray-200">Forest Fire</div>
+<div class="text-xs text-gray-500">17:42:31</div>
+</div>
+</div>
+</td>
+<td class="py-4 px-5 font-mono text-gray-400 text-xs">12.8214° N<br/>80.0433° E</td>
+<td class="py-4 px-5"><span class="text-red-500 font-bold">96.4%</span></td>
+<td class="py-4 px-5 text-right"><span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-500/10 text-red-500 border border-red-500/20">CRITICAL</span></td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</section>
+<!-- END: Dominant Mid Section -->
+
+<!-- BEGIN: Supporting Bottom Section -->
+<section class="grid grid-cols-1 md:grid-cols-3 gap-6">
+<!-- AI Detection Breakdown -->
+<div class="panel p-5 flex flex-col h-72">
+<h2 class="text-xs font-semibold tracking-wider text-gray-400 uppercase mb-6">AI Detection Breakdown (Today)</h2>
+<div class="flex-1 flex items-center justify-center relative">
+<div class="w-36 h-36 rounded-full border-[14px] border-[#2a2a2a] relative flex items-center justify-center">
+<div class="absolute inset-0 rounded-full border-[14px] border-red-500" style="clip-path: polygon(50% 50%, 100% 0, 100% 100%, 50% 100%);"></div>
+<div class="absolute inset-0 rounded-full border-[14px] border-orange-500" style="clip-path: polygon(50% 50%, 0 100%, 50% 100%);"></div>
+<div class="absolute inset-0 rounded-full border-[14px] border-blue-500" style="clip-path: polygon(50% 50%, 0 0, 0 100%);"></div>
+<div class="text-center bg-[#131313] w-full h-full rounded-full flex flex-col items-center justify-center z-10">
+<span class="text-xs text-gray-400">Total</span>
+<span class="text-2xl font-bold text-white">23</span>
+</div>
+</div>
+<div class="ml-8 space-y-3 text-xs w-full max-w-[150px]">
+<div class="flex items-center justify-between gap-4"><span class="flex items-center gap-2"><div class="w-2.5 h-2.5 bg-red-500 rounded-sm"></div> Fire</span><span class="text-gray-300 font-medium">8</span></div>
+<div class="flex items-center justify-between gap-4"><span class="flex items-center gap-2"><div class="w-2.5 h-2.5 bg-orange-500 rounded-sm"></div> Smoke</span><span class="text-gray-300 font-medium">5</span></div>
+<div class="flex items-center justify-between gap-4"><span class="flex items-center gap-2"><div class="w-2.5 h-2.5 bg-blue-500 rounded-sm"></div> Human</span><span class="text-gray-300 font-medium">4</span></div>
+<div class="flex items-center justify-between gap-4"><span class="flex items-center gap-2"><div class="w-2.5 h-2.5 bg-purple-500 rounded-sm"></div> Animal</span><span class="text-gray-300 font-medium">2</span></div>
+</div>
+</div>
+</div>
+<!-- Recent Evidence Stream -->
+<div class="panel md:col-span-2 flex flex-col h-72 p-5">
+<div class="flex justify-between items-center mb-6">
+<h2 class="text-xs font-semibold tracking-wider text-gray-400 uppercase">Recent Evidence Stream</h2>
+<button onclick="document.getElementById('ai-file-input').click()" class="text-xs text-green-400 hover:text-green-300 font-semibold flex items-center gap-1">
+<svg class="w-4 h-4" fill="none" stroke="currentColor" viewbox="0 0 24 24"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+            + Upload New Media
+          </button>
+</div>
+<div class="flex-1 grid grid-cols-3 gap-4" id="evidence-stream-container">
+<!-- Card 1 -->
+<div class="relative rounded-lg overflow-hidden group bg-[#0a0a0a] border border-[#2a2a2a] ring-1 ring-green-500/30 cursor-pointer" onclick="document.getElementById('ai-file-input').click()">
+<div class="absolute inset-0 bg-cover bg-center transition-transform duration-700 group-hover:scale-110" id="evidence-img-card" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuBruNJL0CzVby-luTSPZxDMIJrMkd_6FJH0raI9J-wJsGE5LV6pHWTGS4uFe2MWJ848ouHJJ-zt_qTdDfKiVvjvFbIwQ4RRGr6F-xSJWiVUa1luB-Z6yfiJpdogVOTUuar49M2wwNsOc6J4yCGP_WAxRoc7-ncL1P9kH9DMOzHRAEaCbIR6ZuR1qqSvgqaiDR1QTpS13sYua-dRPNszb9l0-JIuWmr9YgT7YWpVEDUe5Ed865oXXHL6tmvx2tssjaAOGg');"></div>
+<div class="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent"></div>
+<div class="absolute top-2 left-2 bg-black/80 backdrop-blur px-2 py-1 rounded text-[10px] font-medium flex items-center gap-1.5 border border-white/10">
+<div class="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></div> ML Model
+                  </div>
+<div class="absolute bottom-3 left-3 right-3">
+<div class="text-xs font-bold text-green-400 mb-0.5" id="evidence-badge">READY TO PREDICT</div>
+<div class="text-sm font-medium text-white truncate" id="evidence-title">Click to Upload File</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- END: Supporting Bottom Section -->
+</div>
+<!-- END: Dashboard Scrollable Content -->
+<!-- BEGIN: Footer -->
+<footer class="h-10 border-t border-[#2a2a2a] bg-[#131313] flex items-center justify-between px-6 shrink-0 text-xs text-gray-500">
+<div class="flex items-center gap-2">
+<svg class="w-4 h-4 text-green-500" fill="none" stroke="currentColor" viewbox="0 0 24 24"><path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+<span>Protecting our forests with intelligence. Acting in real-time. Saving wildlife. Saving tomorrow.</span>
+</div>
+<div class="flex items-center gap-4">
+<span>Data Last Updated: 17:42:31 IST</span>
+</div>
+</footer>
+<!-- END: Footer -->
+</main>
+<!-- END: Main Content Area -->
+
+<script>
+const BACKEND_URL = "http://127.0.0.1:5000/detect";
+
+async function uploadAndPredict(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  // Show loading status
+  document.getElementById('ai-loading').classList.remove('hidden');
+  document.getElementById('ai-status').textContent = 'Processing Roboflow ML Model...';
+  document.getElementById('ai-orig-name').textContent = file.name;
+
+  // Display Original File Preview
+  const fileUrl = URL.createObjectURL(file);
+  const origImg = document.getElementById('ai-orig-img');
+  origImg.src = fileUrl;
+  origImg.classList.remove('hidden');
+  document.getElementById('ai-orig-placeholder').classList.add('hidden');
+
+  // Prepare FormData payload for Flask Python Backend
+  const formData = new FormData();
+  formData.append('image', file);
+
+  try {
+    const response = await fetch(BACKEND_URL, {
+      method: 'POST',
+      body: formData
+    });
+
+    const data = await response.json();
+    document.getElementById('ai-loading').classList.add('hidden');
+
+    if (response.ok && data.success) {
+      document.getElementById('ai-status').textContent = 'Inference Complete';
+
+      // Render Predicted Base64 Data URL Image
+      const predImg = document.getElementById('ai-pred-img');
+      predImg.src = data.annotated_image;
+      predImg.classList.remove('hidden');
+      document.getElementById('ai-pred-placeholder').classList.add('hidden');
+
+      // Render Prediction Badges & Detections Table
+      renderAiResults(data.result);
+
+      // Update Recent Evidence Stream Card background image
+      const evCard = document.getElementById('evidence-img-card');
+      if (evCard) evCard.style.backgroundImage = `url('${data.annotated_image}')`;
+      const evTitle = document.getElementById('evidence-title');
+      if (evTitle) evTitle.textContent = file.name;
+      const evBadge = document.getElementById('evidence-badge');
+      if (evBadge) evBadge.textContent = 'PROCESSED BY AI';
+
+    } else {
+      document.getElementById('ai-status').textContent = 'Error: ' + (data.error || 'Prediction failed');
+      alert("ML Backend Error: " + (data.error || 'Failed to analyze file'));
+    }
+  } catch (err) {
+    document.getElementById('ai-loading').classList.add('hidden');
+    document.getElementById('ai-status').textContent = 'Backend Connection Error';
+    alert("Could not connect to Python backend at " + BACKEND_URL);
+    console.error(err);
+  }
+}
+
+function renderAiResults(resultObj) {
+  const res = Array.isArray(resultObj) ? resultObj[0] : (resultObj || {});
+
+  const badges = document.getElementById('ai-badges');
+  badges.innerHTML = '';
+
+  const alerts = [];
+  if (res.suspected_poaching) alerts.push({ text: '🚨 Suspected Poaching Alert', bg: 'bg-red-500/20 text-red-400 border-red-500' });
+  if (res.tree_harm_risk) alerts.push({ text: '🌲 Tree Harm Risk', bg: 'bg-orange-500/20 text-orange-400 border-orange-500' });
+  if (res.fire_or_smoke_alert) alerts.push({ text: '🔥 Fire or Smoke Alert', bg: 'bg-red-600/20 text-red-500 border-red-600' });
+  if (res.moving_humans) alerts.push({ text: '👤 Humans Detected', bg: 'bg-blue-500/20 text-blue-400 border-blue-500' });
+  if (res.moving_animals) alerts.push({ text: '🐾 Wildlife Detected', bg: 'bg-purple-500/20 text-purple-400 border-purple-500' });
+
+  if (alerts.length === 0) {
+    alerts.push({ text: '✅ Status: Clear (No threat alerts triggered)', bg: 'bg-green-500/20 text-green-400 border-green-500' });
+  }
+
+  alerts.forEach(a => {
+    const span = document.createElement('span');
+    span.className = `px-3 py-1 rounded-full text-xs font-bold border ${a.bg}`;
+    span.textContent = a.text;
+    badges.appendChild(span);
+  });
+
+  const tableBody = document.getElementById('ai-detection-table');
+  tableBody.innerHTML = '';
+
+  const threatPreds = (res.threat_predictions || {}).predictions || [];
+  const trackedPreds = (res.tracked_entities || {}).predictions || [];
+
+  threatPreds.forEach(p => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td class="p-2.5 text-red-400 font-bold">Threat Object</td><td class="p-2.5">${p.class || p.label || 'Object'}</td><td class="p-2.5">${((p.confidence||0)*100).toFixed(1)}%</td><td class="p-2.5 font-mono">(${Math.round(p.x||0)}, ${Math.round(p.y||0)})</td>`;
+    tableBody.appendChild(tr);
+  });
+
+  trackedPreds.forEach(p => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td class="p-2.5 text-blue-400 font-bold">Tracked Entity</td><td class="p-2.5">${p.class || p.label || 'Entity'}</td><td class="p-2.5">${((p.confidence||0)*100).toFixed(1)}%</td><td class="p-2.5 font-mono">(${Math.round(p.x||0)}, ${Math.round(p.y||0)})</td>`;
+    tableBody.appendChild(tr);
+  });
+
+  document.getElementById('ai-results-details').classList.remove('hidden');
+
+  // Push entry into Live Incidents Log
+  const logTbody = document.getElementById('incidents-log');
+  if (logTbody) {
+    const tr = document.createElement('tr');
+    tr.className = "hover:bg-[#1a1a1a] transition-colors border-l-4 border-l-green-500 bg-green-500/5";
+    tr.innerHTML = `
+      <td class="py-4 px-5">
+        <div class="flex items-center gap-3">
+          <div class="p-2 rounded bg-green-500/10 text-green-500">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewbox="0 0 24 24"><path d="M9 12l2 2 4-4" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+          </div>
+          <div>
+            <div class="font-medium text-gray-200">ML Model Detection</div>
+            <div class="text-xs text-gray-500">Just Now</div>
+          </div>
+        </div>
+      </td>
+      <td class="py-4 px-5 font-mono text-gray-400 text-xs">AI Inference Zone</td>
+      <td class="py-4 px-5"><span class="text-green-500 font-bold">Active</span></td>
+      <td class="py-4 px-5 text-right"><span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-500/10 text-green-500 border border-green-500/20">PROCESSED</span></td>
+    `;
+    logTbody.insertBefore(tr, logTbody.firstChild);
+  }
+}
+</script>
+</body>
+</html>

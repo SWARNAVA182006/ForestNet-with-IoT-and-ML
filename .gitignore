@@ -1,0 +1,27 @@
+# Python Virtual Environment & Cache
+.venv/
+venv/
+ENV/
+env/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+
+# Large Test Files & Local Media Directories
+batch_test_results.json
+detected_results/
+detected_videos/
+
+# Frontend Dependencies & Build Output
+frontend/node_modules/
+frontend/dist/
+node_modules/
+dist/
+
+# OS & Editor Files
+.DS_Store
+.vscode/
+.idea/
+*.log
