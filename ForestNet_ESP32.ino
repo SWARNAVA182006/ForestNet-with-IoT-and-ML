@@ -5,243 +5,422 @@
 #include <HTTPClient.h>
 #include <ArduinoJson.h>
 
-/* =========================================
-   FORESTNET - SENSOR MONITORING SYSTEM
-   ========================================= */
+/* ============================================================
+   FORESTNET
+   REAL-TIME ESP32 SENSOR NODE
+   ============================================================ */
 
-/* ---------- HARDWARE PINS ---------- */
+
+/* ============================================================
+   HARDWARE CONFIGURATION
+   ============================================================ */
+
 #define DHTPIN 4
 #define DHTTYPE DHT22
+
 #define MQ2_PIN 34
 #define PIR_PIN 27
 
-/* ---------- THRESHOLDS ---------- */
+
+/* ============================================================
+   ALERT THRESHOLDS
+   ============================================================ */
+
 #define MQ2_THRESHOLD 500
-#define TEMP_THRESHOLD 40
+#define TEMP_THRESHOLD 40.0
 
-/* =========================================
-   WIFI + FLASK BACKEND CONNECTION
-   ========================================= */
-const char* WIFI_SSID     = "Shanks";
-const char* WIFI_PASSWORD = "trimman25";
 
-// Current PC Local IP on active Wi-Fi network: 10.81.193.60
-const char* TELEMETRY_ENDPOINT = "http://10.81.193.60:5000/api/telemetry";
+/* ============================================================
+   WIFI CONFIGURATION
+   ============================================================ */
 
+const char* WIFI_SSID     = "Motorola edge 40";
+const char* WIFI_PASSWORD = "Marvel@12345";
+
+/*
+   PC_IP = the IPv4 address shown by ipconfig on the laptop
+   running the Flask backend.
+   Current address: 10.81.193.60
+*/
+const char* PC_IP = "10.81.193.60";
+
+
+/* ============================================================
+   BACKEND CONFIGURATION
+   ============================================================ */
+
+const int SERVER_PORT = 5000;
+
+String TELEMETRY_ENDPOINT =
+  String("http://") + PC_IP + ":" + SERVER_PORT + "/api/telemetry";
+
+
+/* ============================================================
+   SYSTEM TIMING
+   ============================================================ */
+
+const unsigned long TELEMETRY_INTERVAL  = 2000;
 const unsigned long WIFI_RETRY_INTERVAL = 10000;
-unsigned long lastWifiRetry = 0;
 
-/* ---------- OBJECTS ---------- */
+unsigned long lastTelemetryTime = 0;
+unsigned long lastWifiRetry     = 0;
+
+
+/* ============================================================
+   SENSOR OBJECTS
+   ============================================================ */
+
 DHT dht(DHTPIN, DHTTYPE);
+
 TinyGPSPlus gps;
+
 HardwareSerial gpsSerial(2);
 
-/* ---------- ALERT VARIABLES ---------- */
-bool alertActive = false;
-bool previousMotionState = LOW;
-bool currentMotionState = LOW;
-unsigned long lastPrintTime = 0;
-const unsigned long PRINT_INTERVAL = 2000;
 
-/* =========================================
-   WIFI CONNECT FUNCTION
-   ========================================= */
+/* ============================================================
+   SYSTEM STATE
+   ============================================================ */
+
+bool alertActive         = false;
+bool previousMotionState = LOW;
+bool currentMotionState  = LOW;
+
+
+/* ============================================================
+   WIFI CONNECTION
+   ============================================================ */
+
 void connectWiFi() {
+
   Serial.println();
-  Serial.print("Connecting to WiFi: ");
-  Serial.println(WIFI_SSID);
-  WiFi.disconnect(true);
-  delay(500);
+  Serial.println("==========================================");
+  Serial.println("FORESTNET WIFI CONNECTION");
+  Serial.println("==========================================");
+
   WiFi.mode(WIFI_STA);
+  WiFi.disconnect();
+  delay(500);
+
+  Serial.print("Connecting to: ");
+  Serial.println(WIFI_SSID);
+
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
 
   unsigned long startAttempt = millis();
+
   while (WiFi.status() != WL_CONNECTED && millis() - startAttempt < 15000) {
-    delay(400);
     Serial.print(".");
+    delay(500);
   }
+
   Serial.println();
 
   if (WiFi.status() == WL_CONNECTED) {
-    Serial.print("✓ WiFi connected. ESP32 IP address: ");
+    Serial.println("OK WIFI CONNECTED");
+    Serial.print("ESP32 IP: ");
     Serial.println(WiFi.localIP());
-  } else {
-    Serial.println("✗ WiFi not connected yet. Will keep retrying in background.");
+    Serial.print("Backend Endpoint: ");
+    Serial.println(TELEMETRY_ENDPOINT);
+  }
+  else {
+    Serial.println("FAIL WIFI CONNECTION FAILED");
   }
 }
 
-/* =========================================
+
+/* ============================================================
+   WIFI MAINTENANCE
+   ============================================================ */
+
+void maintainWiFi() {
+
+  if (WiFi.status() == WL_CONNECTED) return;
+
+  if (millis() - lastWifiRetry >= WIFI_RETRY_INTERVAL) {
+    lastWifiRetry = millis();
+    Serial.println("WiFi disconnected. Reconnecting...");
+    connectWiFi();
+  }
+}
+
+
+/* ============================================================
    SEND TELEMETRY TO FLASK BACKEND
-   ========================================= */
-void sendTelemetry(float temperature, float humidity, int gasValue,
-                    bool motion, bool alert, const char* reason) {
+   ============================================================ */
+
+bool sendTelemetry(
+  float temperature,
+  float humidity,
+  int   smokeValue,
+  bool  motion,
+  bool  alert,
+  const char* reason
+) {
 
   if (WiFi.status() != WL_CONNECTED) {
-    Serial.println("⚠ Skipping upload — WiFi not connected");
-    return;
+    Serial.println("TELEMETRY SKIPPED: WiFi not connected");
+    return false;
   }
 
   HTTPClient http;
+
+  Serial.println();
+  Serial.println("Sending telemetry...");
+  Serial.print("Endpoint: ");
+  Serial.println(TELEMETRY_ENDPOINT);
+
   http.begin(TELEMETRY_ENDPOINT);
   http.addHeader("Content-Type", "application/json");
-  http.setTimeout(4000);
-  http.setTimeout(5000);
+  http.setConnectTimeout(5000);
+  http.setTimeout(7000);
 
   StaticJsonDocument<512> doc;
-  doc["temperature"] = isnan(temperature) ? 0 : temperature;
-  doc["humidity"]     = isnan(humidity) ? 0 : humidity;
-  doc["smoke"]        = gasValue;
-  doc["motion"]       = motion;
-  doc["alert"]        = alert;
-  doc["reason"]       = reason;
 
+  // Sensor Data
+  if (isnan(temperature)) doc["temperature"] = nullptr;
+  else                     doc["temperature"] = temperature;
+
+  if (isnan(humidity))     doc["humidity"]    = nullptr;
+  else                     doc["humidity"]    = humidity;
+
+  doc["smoke"]  = smokeValue;
+  doc["motion"] = motion;
+  doc["alert"]  = alert;
+  doc["reason"] = reason;
+
+  // GPS Data
   if (gps.location.isValid()) {
     doc["lat"] = gps.location.lat();
     doc["lng"] = gps.location.lng();
-  } else {
-    doc["lat"] = 0;
-    doc["lng"] = 0;
   }
+  else {
+    doc["lat"] = nullptr;
+    doc["lng"] = nullptr;
+  }
+
+  // Device Info
+  doc["device"] = "FORESTNET_ESP32";
+  doc["uptime"] = millis();
 
   String payload;
   serializeJson(doc, payload);
 
+  Serial.print("Payload: ");
+  Serial.println(payload);
+
   int responseCode = http.POST(payload);
 
   if (responseCode > 0) {
-    Serial.print("→ Telemetry sent. Server responded: ");
+    Serial.print("OK SERVER RESPONSE: ");
     Serial.println(responseCode);
-  } else {
-    Serial.print("✗ Failed to send telemetry. Error: ");
-    Serial.println(http.errorToString(responseCode));
+    String response = http.getString();
+    if (response.length() > 0) {
+      Serial.print("Server says: ");
+      Serial.println(response);
+    }
+    http.end();
+    return true;
   }
 
+  Serial.print("FAIL TELEMETRY ERROR: ");
+  Serial.println(http.errorToString(responseCode));
   http.end();
+  return false;
 }
 
+
+/* ============================================================
+   TRIGGER ALERT
+   ============================================================ */
+
+void triggerAlert(
+  const char* reason,
+  float temperature,
+  float humidity,
+  int   smokeValue,
+  bool  motion
+) {
+
+  if (alertActive) return;
+
+  alertActive = true;
+
+  Serial.println();
+  Serial.println("==========================================");
+  Serial.println("FORESTNET ALERT TRIGGERED");
+  Serial.println("==========================================");
+  Serial.print("Trigger Reason: ");
+  Serial.println(reason);
+  Serial.println("ALERT");
+
+  // Send immediate alert telemetry to Flask backend
+  // Flask backend will automatically trigger camera capture + AI analysis
+  sendTelemetry(temperature, humidity, smokeValue, motion, true, reason);
+}
+
+
+/* ============================================================
+   RESET ALERT
+   ============================================================ */
+
+void resetAlert() {
+
+  if (!alertActive) return;
+
+  alertActive = false;
+
+  Serial.println();
+  Serial.println("System Reset -- Monitoring Resumed");
+  Serial.println("OK FORESTNET READY FOR NEXT INCIDENT");
+
+  // Notify backend that alert is cleared
+  float temp  = dht.readTemperature();
+  float hum   = dht.readHumidity();
+  int   smoke = analogRead(MQ2_PIN);
+  sendTelemetry(temp, hum, smoke, false, false, "NORMAL");
+}
+
+
+/* ============================================================
+   SETUP
+   ============================================================ */
+
 void setup() {
+
   Serial.begin(115200);
+  delay(1000);
+
   Serial.println();
   Serial.println("==========================================");
   Serial.println("       FORESTNET SENSOR SYSTEM");
   Serial.println("==========================================");
 
   dht.begin();
+
   pinMode(PIR_PIN, INPUT);
+
   gpsSerial.begin(9600, SERIAL_8N1, 21, 22);
 
-  Serial.println();
-  Serial.println("Initializing HC-SR501 Motion Sensor...");
-  Serial.println("Please do not move in front of the sensor.");
-  Serial.println();
+  Serial.println("Initializing PIR sensor...");
+  Serial.println("Please keep area still for 30 seconds.");
 
-  delay(30000); // PIR sensor stabilization
+  // HC-SR501 needs 30s to stabilize on first power-on
+  delay(30000);
+
   previousMotionState = digitalRead(PIR_PIN);
 
-  Serial.println("✓ PIR Sensor Ready");
-  Serial.println("✓ DHT22 Ready");
-  Serial.println("✓ MQ-2 Ready");
-  Serial.println("✓ GPS Monitoring Started");
+  Serial.println("OK PIR READY");
+  Serial.println("OK DHT22 READY");
+  Serial.println("OK MQ-2 READY");
+  Serial.println("OK GPS MONITORING STARTED");
 
   connectWiFi();
 
   Serial.println();
-  Serial.println("ForestNet Monitoring Started");
   Serial.println("==========================================");
-  Serial.println();
+  Serial.println("FORESTNET MONITORING STARTED");
+  Serial.println("==========================================");
 }
 
-void loop() {
-  // Keep WiFi Alive
-  if (WiFi.status() != WL_CONNECTED && millis() - lastWifiRetry >= WIFI_RETRY_INTERVAL) {
-    lastWifiRetry = millis();
-    Serial.println("Reconnecting WiFi...");
-    connectWiFi();
-  }
 
-  // Continuous GPS Reading
+/* ============================================================
+   MAIN LOOP
+   ============================================================ */
+
+void loop() {
+
+  // Keep WiFi alive
+  maintainWiFi();
+
+  // Feed GPS parser
   while (gpsSerial.available() > 0) {
     gps.encode(gpsSerial.read());
   }
 
-  // Motion Detection
+  // PIR Motion Detection (rising edge only)
   currentMotionState = digitalRead(PIR_PIN);
 
   if (currentMotionState == HIGH && previousMotionState == LOW) {
-    Serial.println("\n🏃 MOTION DETECTED");
+    Serial.println();
+    Serial.println("MOTION DETECTED");
 
-    if (!alertActive) {
-      Serial.println("⚠ ALERT TRIGGERED");
-      Serial.println("Trigger Reason: MOTION DETECTED");
-      Serial.println("ALERT");
+    float temperature = dht.readTemperature();
+    float humidity    = dht.readHumidity();
+    int   smokeValue  = analogRead(MQ2_PIN);
 
-      alertActive = true;
-
-      sendTelemetry(dht.readTemperature(), dht.readHumidity(),
-                    analogRead(MQ2_PIN), true, true, "MOTION_DETECTED");
-    }
+    triggerAlert("MOTION_DETECTED", temperature, humidity, smokeValue, true);
   }
 
   previousMotionState = currentMotionState;
 
-  // Sensor Read & Telemetry Every 2 Seconds
-  if (millis() - lastPrintTime >= PRINT_INTERVAL) {
-    lastPrintTime = millis();
+  // Periodic sensor telemetry every 2 seconds
+  if (millis() - lastTelemetryTime >= TELEMETRY_INTERVAL) {
+    lastTelemetryTime = millis();
 
-    float humidity = dht.readHumidity();
+    float humidity    = dht.readHumidity();
     float temperature = dht.readTemperature();
-    int gasValue = analogRead(MQ2_PIN);
+    int   smokeValue  = analogRead(MQ2_PIN);
+
+    // Print sensor data
+    Serial.println();
+    Serial.println("---------- SENSOR DATA ----------");
 
     Serial.print("Temperature: ");
     if (isnan(temperature)) Serial.print("ERROR");
-    else { Serial.print(temperature, 2); Serial.print(" °C"); }
+    else { Serial.print(temperature, 2); Serial.print(" C"); }
 
     Serial.print("   Humidity: ");
     if (isnan(humidity)) Serial.print("ERROR");
     else { Serial.print(humidity, 2); Serial.print(" %"); }
 
-    Serial.print("   Smoke Value: "); Serial.print(gasValue);
-    Serial.print("   Motion: "); Serial.print(currentMotionState == HIGH ? "DETECTED" : "NO MOTION");
+    Serial.print("   Smoke Value: ");
+    Serial.print(smokeValue);
+
+    Serial.print("   Motion: ");
+    Serial.print(currentMotionState == HIGH ? "DETECTED" : "NO MOTION");
 
     if (gps.location.isValid()) {
-      Serial.print("   Latitude: "); Serial.print(gps.location.lat(), 6);
-      Serial.print("   Longitude: "); Serial.print(gps.location.lng(), 6);
-    } else {
+      Serial.print("   Latitude: ");
+      Serial.print(gps.location.lat(), 6);
+      Serial.print("   Longitude: ");
+      Serial.print(gps.location.lng(), 6);
+    }
+    else {
       Serial.print("   GPS: Waiting for signal...");
     }
     Serial.println();
 
-    bool temperatureAlert = (!isnan(temperature) && temperature > TEMP_THRESHOLD);
-    bool smokeAlert = (gasValue > MQ2_THRESHOLD);
-    const char* triggerReason = "NORMAL";
+    // Threshold analysis
+    bool temperatureAlert = !isnan(temperature) && temperature > TEMP_THRESHOLD;
+    bool smokeAlert       = smokeValue > MQ2_THRESHOLD;
+    bool motionAlert      = currentMotionState == HIGH;
 
-    if ((temperatureAlert || smokeAlert) && !alertActive) {
-      Serial.println("\n⚠ ALERT TRIGGERED");
-      if (temperatureAlert) Serial.println("Trigger Reason: HIGH TEMPERATURE");
-      if (smokeAlert) Serial.println("Trigger Reason: HIGH SMOKE");
-      Serial.println("ALERT");
+    const char* reason = "NORMAL";
 
-      alertActive = true;
+    if      (temperatureAlert && smokeAlert) reason = "HIGH_TEMPERATURE_AND_SMOKE";
+    else if (temperatureAlert)               reason = "HIGH_TEMPERATURE";
+    else if (smokeAlert)                     reason = "HIGH_SMOKE";
+    else if (motionAlert)                    reason = "MOTION_DETECTED";
+
+    // Trigger alert if needed
+    if ((temperatureAlert || smokeAlert || motionAlert) && !alertActive) {
+      triggerAlert(reason, temperature, humidity, smokeValue, motionAlert);
     }
 
-    if (temperatureAlert && smokeAlert) triggerReason = "HIGH_TEMPERATURE_AND_SMOKE";
-    else if (temperatureAlert) triggerReason = "HIGH_TEMPERATURE";
-    else if (smokeAlert) triggerReason = "HIGH_SMOKE";
-    else if (currentMotionState == HIGH) triggerReason = "MOTION_DETECTED";
-
-    bool temperatureNormal = (isnan(temperature) || temperature < 35);
-    bool smokeNormal = (gasValue < 400);
-    bool noMotion = (currentMotionState == LOW);
+    // Reset alert when all conditions return to normal
+    bool temperatureNormal = isnan(temperature) || temperature < 35;
+    bool smokeNormal       = smokeValue < 400;
+    bool noMotion          = currentMotionState == LOW;
 
     if (alertActive && temperatureNormal && smokeNormal && noMotion) {
-      Serial.println("System Reset — Monitoring Resumed");
-      alertActive = false;
+      resetAlert();
     }
 
-    Serial.println("------------------------------------------");
+    // Send regular telemetry to Flask backend
+    sendTelemetry(temperature, humidity, smokeValue, motionAlert, alertActive, reason);
 
-    // Regular Telemetry Send to Flask
-    sendTelemetry(temperature, humidity, gasValue,
-                  currentMotionState == HIGH, alertActive, triggerReason);
+    Serial.println("------------------------------------------");
   }
+
+  delay(10);
 }

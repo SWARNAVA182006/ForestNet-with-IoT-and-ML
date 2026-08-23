@@ -1,5 +1,13 @@
 import os
 import sys
+
+# Force UTF-8 output on Windows to prevent charmap errors from emoji characters
+if sys.platform == "win32":
+    import io
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
+
+
 import time
 import base64
 import tempfile
@@ -172,7 +180,7 @@ def camera_queue_worker():
             
             inc_id, sensor_snapshot, reason = item
             print(f"\n==========================================")
-            print(f"🚨 PROCESSING INCIDENT #{inc_id} IN BACKGROUND WORKER")
+            print(f"[ALERT] PROCESSING INCIDENT #{inc_id} IN BACKGROUND WORKER")
             print(f"Trigger Reason: {reason}")
             print(f"==========================================")
 
@@ -195,7 +203,7 @@ def camera_queue_worker():
                 camera = cv2.VideoCapture(CAMERA_INDEX)
 
             if not camera.isOpened():
-                print(f"❌ CAMERA ERROR: Could not open VideoCapture({CAMERA_INDEX}) for Incident #{inc_id}")
+                print(f"[ERROR] CAMERA ERROR: Could not open VideoCapture({CAMERA_INDEX}) for Incident #{inc_id}")
                 for inc in live_incidents:
                     if inc["id"] == inc_id:
                         inc["status"] = "CAMERA_FAILED"
@@ -216,7 +224,7 @@ def camera_queue_worker():
                 frame_h, frame_w, _ = frame1.shape
                 cv2.imwrite(photo1_path, frame1)
                 cv2.imwrite(photo1_sub, frame1)
-                print(f"📸 Photo 1 saved -> {photo1_name} ({frame_w}x{frame_h})")
+                print(f"[PHOTO] Photo 1 saved -> {photo1_name} ({frame_w}x{frame_h})")
 
             # State Transition: CAPTURING_PHOTO_2
             for inc in live_incidents:
@@ -235,7 +243,7 @@ def camera_queue_worker():
                 frame_h, frame_w, _ = frame2.shape
                 cv2.imwrite(photo2_path, frame2)
                 cv2.imwrite(photo2_sub, frame2)
-                print(f"📸 Photo 2 saved -> {photo2_name} ({frame_w}x{frame_h})")
+                print(f"[PHOTO] Photo 2 saved -> {photo2_name} ({frame_w}x{frame_h})")
 
             # State Transition: RECORDING_VIDEO
             for inc in live_incidents:
@@ -258,7 +266,7 @@ def camera_queue_worker():
             video_avi = cv2.VideoWriter(video_path_avi, fourcc_avi, 20.0, (frame_w, frame_h))
             video_mp4 = cv2.VideoWriter(video_path_mp4, fourcc_mp4, 20.0, (frame_w, frame_h))
 
-            print(f"🎥 Recording 6-second evidence video ({frame_w}x{frame_h})...")
+            print(f"[VIDEO] Recording 6-second evidence video ({frame_w}x{frame_h})...")
             v_start = time.time()
             frame_count = 0
             while time.time() - v_start < VIDEO_DURATION:
@@ -272,7 +280,7 @@ def camera_queue_worker():
             video_avi.release()
             video_mp4.release()
             camera.release()
-            print(f"🎥 Video saved -> {video_name_mp4} ({frame_count} frames recorded)")
+            print(f"[VIDEO] Video saved -> {video_name_mp4} ({frame_count} frames recorded)")
 
             # Copy video files to subfolders
             try:
@@ -289,7 +297,7 @@ def camera_queue_worker():
                     break
 
             # AUTOMATED DUAL-PHOTO ROBOFLOW AI PIPELINE (BOTH PHOTO 1 AND PHOTO 2)
-            print("🤖 Running Roboflow AI threat analysis on BOTH Photo 1 AND Photo 2...")
+            print("[AI] Running Roboflow AI threat analysis on BOTH Photo 1 AND Photo 2...")
             ai_detected_labels = []
             ai_photo1_annotated = ""
             ai_photo2_annotated = ""
@@ -366,7 +374,7 @@ Video: {video_name_mp4}
                 with open(lp, "w", encoding="utf-8") as f:
                     f.write(log_content)
 
-            print("📄 Incident log saved ->", log_name)
+            print("[LOG] Incident log saved ->", log_name)
 
             # PHASE 8: EVIDENCE FILE VERIFICATION
             p1_valid = os.path.exists(photo1_path) and os.path.getsize(photo1_path) > 1000
@@ -401,10 +409,14 @@ Video: {video_name_mp4}
                     inc["video_name"] = video_name_mp4
                     break
 
-            print(f"✅ INCIDENT #{inc_id} COMPLETE | File Verification: {final_status} | GPS: {loc_summary} | Severity: {sev_level}\n")
+            print(f"[OK] INCIDENT #{inc_id} COMPLETE | File Verification: {final_status} | GPS: {loc_summary} | Severity: {sev_level}\n")
             incident_queue.task_done()
         except Exception as err:
-            print(f"❌ ERROR in camera_queue_worker: {err}")
+            print(f"[ERROR] ERROR in camera_queue_worker: {err}")
+            try:
+                incident_queue.task_done()
+            except Exception:
+                pass
 
 threading.Thread(target=camera_queue_worker, daemon=True).start()
 
@@ -413,9 +425,9 @@ def trigger_new_incident_immediately(sensor_dict, reason):
     global last_alert_active, last_incident_timestamp
 
     now_time = time.time()
-    # Phase 20: PIR Motion Deduplication
-    if last_alert_active and (now_time - last_incident_timestamp < DEDUPLICATION_COOLDOWN):
-        print(f"[DEDUPLICATION NOTE] Suppressing duplicate incident trigger for continuous alert ({reason})")
+    # Strict Cooldown to prevent noisy PIR sensors from taking constant photos
+    if now_time - last_incident_timestamp < DEDUPLICATION_COOLDOWN:
+        print(f"[DEDUPLICATION NOTE] Suppressing duplicate incident trigger ({reason}) - cooldown active.")
         return
 
     last_alert_active = True
@@ -449,7 +461,7 @@ def trigger_new_incident_immediately(sensor_dict, reason):
     }
     
     live_incidents.insert(0, new_inc)
-    print(f"\n⚡ INSTANT INCIDENT CREATED -> {inc_id} ({reason}) | GPS: {gps_str} | Queueing camera worker...")
+    print(f"\n[INSTANT] INSTANT INCIDENT CREATED -> {inc_id} ({reason}) | GPS: {gps_str} | Queueing camera worker...")
     incident_queue.put((inc_id, sensor_dict, reason))
 
 # Serial Monitoring Thread for ESP32 (Parsing Arduino Serial Lines)
@@ -473,7 +485,7 @@ def serial_monitoring_thread():
     try:
         time.sleep(2)
         print("\n==========================================")
-        print(f"🌲 ForestNet Monitoring Started on {target_port} @ 115200 baud")
+        print(f"[TREE] ForestNet Monitoring Started on {target_port} @ 115200 baud")
         print("==========================================")
 
         alert_active = False
@@ -485,14 +497,31 @@ def serial_monitoring_thread():
                 line = ser.readline().decode(errors="ignore").strip()
                 if not line: continue
 
-                if "Temperature:" in line and "Humidity:" in line and "Smoke Value:" in line:
+                if "Temperature:" in line and "Humidity:" in line:
                     try:
-                        parts = line.split()
-                        temp_v = float(parts[1]) if len(parts) > 1 else 30.4
-                        hum_v = float(parts[3]) if len(parts) > 3 else 70.8
-                        smoke_v = int(parts[6]) if len(parts) > 6 else 231
-                        latest_sensor_data.update({"temperature": temp_v, "humidity": hum_v, "smoke": smoke_v, "motion": "DETECTED"})
-                    except Exception: pass
+                        import re
+                        t_m = re.search(r"Temperature:\s*([\d\.]+)", line)
+                        h_m = re.search(r"Humidity:\s*([\d\.]+)", line)
+                        s_m = re.search(r"Smoke Value:\s*([\d\.]+)", line)
+                        m_m = re.search(r"Motion:\s*([A-Za-z\s]+?)(?:GPS|$)", line)
+
+                        temp_v = float(t_m.group(1)) if t_m else latest_telemetry["temperature"]
+                        hum_v = float(h_m.group(1)) if h_m else latest_telemetry["humidity"]
+                        smoke_v = int(float(s_m.group(1))) if s_m else latest_telemetry["smoke"]
+                        motion_v = m_m.group(1).strip() if m_m else latest_telemetry["motion"]
+
+                        now_ts = time.time()
+                        latest_telemetry.update({
+                            "temperature": round(temp_v, 1),
+                            "humidity": round(hum_v, 1),
+                            "smoke": smoke_v,
+                            "motion": motion_v,
+                            "last_raw_timestamp": now_ts,
+                            "connection_status": "CONNECTED",
+                            "last_updated": datetime.now().strftime("%H:%M:%S IST")
+                        })
+                    except Exception as parse_ex:
+                        pass
 
                 # Parse Latitude and Longitude from Arduino COM6 serial lines
                 if "Latitude:" in line and "Longitude:" in line:
@@ -724,11 +753,22 @@ def telemetry():
             hum = float(data.get("humidity", data.get("hum", latest_telemetry["humidity"])))
             smoke = int(float(data.get("smoke", data.get("gas", latest_telemetry["smoke"]))))
             motion_raw = data.get("motion", latest_telemetry["motion"])
-            motion = "DETECTED" if (isinstance(motion_raw, bool) and motion_raw) else str(motion_raw).upper()
+            if isinstance(motion_raw, bool):
+                motion = "DETECTED" if motion_raw else "NO MOTION"
+            elif isinstance(motion_raw, str) and motion_raw.upper() in ("TRUE", "1", "DETECTED", "HIGH"):
+                motion = "DETECTED"
+            elif isinstance(motion_raw, str) and motion_raw.upper() in ("FALSE", "0", "NO MOTION", "LOW", ""):
+                motion = "NO MOTION"
+            else:
+                motion = str(motion_raw).upper()
 
-            # Parse Genuine Latitude and Longitude sent by Arduino (Strict Zero-Fake Rule)
-            raw_lat = float(data.get("lat", data.get("latitude", 0)))
-            raw_lng = float(data.get("lng", data.get("longitude", 0)))
+            # Parse Genuine Latitude and Longitude sent by Arduino
+            # ESP32 sends null (Python None) when GPS has no signal — handle safely
+            _lat = data.get("lat", data.get("latitude", None))
+            _lng = data.get("lng", data.get("longitude", None))
+            # Convert only if it's a real number (not None/null)
+            raw_lat = float(_lat) if _lat is not None else 0
+            raw_lng = float(_lng) if _lng is not None else 0
             if raw_lat != 0 and raw_lng != 0:
                 lat_val, lng_val, gps_st = round(raw_lat, 6), round(raw_lng, 6), "FIXED"
             else:
@@ -764,7 +804,7 @@ def telemetry():
         except Exception as e:
             return jsonify({"error": str(e)}), 500
 
-    # GET Telemetry — Calculate real-time connection status based on 10s timestamp cutoff
+    # GET Telemetry [?] Calculate real-time connection status based on 10s timestamp cutoff
     sec_since_update = time.time() - latest_telemetry.get("last_raw_timestamp", 0)
     latest_telemetry["connection_status"] = "CONNECTED" if sec_since_update < 12 else "DISCONNECTED"
 

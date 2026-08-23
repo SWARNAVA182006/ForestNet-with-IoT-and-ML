@@ -17,8 +17,8 @@ export default function OverviewTab({ setActiveTab, incidents, theme, telemetry,
   const smoke = telemetry ? telemetry.smoke : 231;
   const motionState = telemetry ? telemetry.motion : "NO MOTION";
   const lastUpdated = telemetry ? telemetry.last_updated : "Live";
-  const lat = telemetry ? telemetry.lat : None;
-  const lng = telemetry ? telemetry.lng : None;
+  const lat = telemetry ? telemetry.lat : null;
+  const lng = telemetry ? telemetry.lng : null;
   const gpsStatus = telemetry ? telemetry.gps_status : "UNAVAILABLE";
 
   const hasGpsLock = lat !== null && lng !== null && lat !== 0 && lng !== 0;
