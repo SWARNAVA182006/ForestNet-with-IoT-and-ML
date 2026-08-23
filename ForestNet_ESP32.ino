@@ -47,7 +47,11 @@ const unsigned long PRINT_INTERVAL = 2000;
    WIFI CONNECT FUNCTION
    ========================================= */
 void connectWiFi() {
-  Serial.print("Connecting to WiFi");
+  Serial.println();
+  Serial.print("Connecting to WiFi: ");
+  Serial.println(WIFI_SSID);
+  WiFi.disconnect(true);
+  delay(500);
   WiFi.mode(WIFI_STA);
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
 
@@ -59,7 +63,7 @@ void connectWiFi() {
   Serial.println();
 
   if (WiFi.status() == WL_CONNECTED) {
-    Serial.print("✓ WiFi connected. IP address: ");
+    Serial.print("✓ WiFi connected. ESP32 IP address: ");
     Serial.println(WiFi.localIP());
   } else {
     Serial.println("✗ WiFi not connected yet. Will keep retrying in background.");
@@ -80,6 +84,7 @@ void sendTelemetry(float temperature, float humidity, int gasValue,
   HTTPClient http;
   http.begin(TELEMETRY_ENDPOINT);
   http.addHeader("Content-Type", "application/json");
+  http.setTimeout(4000);
   http.setTimeout(5000);
 
   StaticJsonDocument<512> doc;
