@@ -25,8 +25,8 @@
 const char* WIFI_SSID     = "Shanks";
 const char* WIFI_PASSWORD = "trimman25";
 
-// Current PC Local IP on your new network: 10.3.41.53
-const char* TELEMETRY_ENDPOINT = "http://10.3.41.53:5000/api/telemetry";
+// Current PC Local IP on active Wi-Fi network: 10.81.193.60
+const char* TELEMETRY_ENDPOINT = "http://10.81.193.60:5000/api/telemetry";
 
 const unsigned long WIFI_RETRY_INTERVAL = 10000;
 unsigned long lastWifiRetry = 0;
