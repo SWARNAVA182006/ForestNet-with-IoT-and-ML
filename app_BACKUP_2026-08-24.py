@@ -12,7 +12,6 @@ import time
 import socket
 import base64
 import tempfile
-import subprocess
 import threading
 import queue
 import requests
@@ -283,30 +282,6 @@ def camera_queue_worker():
             video_mp4.release()
             camera.release()
             print(f"[VIDEO] Video saved -> {video_name_mp4} ({frame_count} frames recorded)")
-
-            # Transcode MP4 to H.264 using FFmpeg for browser compatibility
-            try:
-                temp_output_path = video_path_mp4.replace(".mp4", "_h264.mp4")
-                print(f"[VIDEO] Transcoding {video_name_mp4} to H.264 format...")
-                transcode_cmd = [
-                    "ffmpeg", "-y", "-i", video_path_mp4,
-                    "-vcodec", "libx264", "-pix_fmt", "yuv420p",
-                    "-preset", "veryfast", "-movflags", "+faststart",
-                    temp_output_path
-                ]
-                result = subprocess.run(transcode_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=60)
-                
-                if result.returncode == 0 and os.path.exists(temp_output_path) and os.path.getsize(temp_output_path) > 1000:
-                    os.replace(temp_output_path, video_path_mp4)
-                    print(f"[VIDEO] Successfully transcoded {video_name_mp4} to H.264.")
-                else:
-                    print(f"[VIDEO] FFmpeg transcode failed or output invalid. Falling back to original mp4v video.")
-            except FileNotFoundError:
-                print(f"[VIDEO] WARNING: FFmpeg not found on PATH. Video {video_name_mp4} will remain in mp4v format (not playable in browsers).")
-            except subprocess.TimeoutExpired:
-                print(f"[VIDEO] WARNING: FFmpeg transcode timed out. Falling back to original mp4v video.")
-            except Exception as e:
-                print(f"[VIDEO] WARNING: FFmpeg transcode error: {e}. Falling back to original mp4v video.")
 
             # Copy video files to subfolders
             try:
