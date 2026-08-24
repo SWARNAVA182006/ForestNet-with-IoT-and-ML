@@ -9,6 +9,7 @@ if sys.platform == "win32":
 
 
 import time
+import socket
 import base64
 import tempfile
 import threading
@@ -464,6 +465,37 @@ def trigger_new_incident_immediately(sensor_dict, reason):
     print(f"\n[INSTANT] INSTANT INCIDENT CREATED -> {inc_id} ({reason}) | GPS: {gps_str} | Queueing camera worker...")
     incident_queue.put((inc_id, sensor_dict, reason))
 
+def udp_discovery_thread():
+    """Background thread to listen for ESP32 UDP broadcast discovery requests."""
+    udp_port = 5006
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    # Allow multiple sockets to bind to this port (useful if restarting quickly)
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    # Enable broadcasting
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+    
+    try:
+        sock.bind(("0.0.0.0", udp_port))
+        print(f"[DISCOVERY] UDP Listener started on port {udp_port}")
+    except Exception as e:
+        print(f"[DISCOVERY ERROR] Could not bind UDP port {udp_port}: {e}")
+        return
+
+    while True:
+        try:
+            data, addr = sock.recvfrom(1024)
+            if data:
+                message = data.decode("utf-8", errors="ignore").strip()
+                if message == "FORESTNET_DISCOVER":
+                    print(f"[DISCOVERY] Received discovery request from {addr[0]}:{addr[1]}")
+                    reply = "FORESTNET_HERE"
+                    sock.sendto(reply.encode("utf-8"), addr)
+                    print(f"[DISCOVERY] Sent reply 'FORESTNET_HERE' to {addr[0]}:{addr[1]}")
+        except Exception as e:
+            print(f"[DISCOVERY ERROR] {e}")
+
+threading.Thread(target=udp_discovery_thread, daemon=True).start()
+
 # Serial Monitoring Thread for ESP32 (Parsing Arduino Serial Lines)
 def serial_monitoring_thread():
     global last_alert_active
@@ -556,6 +588,34 @@ def serial_monitoring_thread():
         print(f"[SERIAL NOTE] COM6 Port Status: {e} (HTTP API Telemetry endpoint is ready)")
 
 threading.Thread(target=serial_monitoring_thread, daemon=True).start()
+
+# ============================================================
+# UDP AUTO-DISCOVERY RESPONDER
+# Lets the ESP32 find this laptop's current IP automatically —
+# no more hardcoding IPs that break every time the hotspot changes.
+# ============================================================
+import socket as _socket
+DISCOVERY_PORT = 5006
+
+def udp_discovery_responder():
+    sock = _socket.socket(_socket.AF_INET, _socket.SOCK_DGRAM)
+    sock.setsockopt(_socket.SOL_SOCKET, _socket.SO_REUSEADDR, 1)
+    try:
+        sock.bind(("", DISCOVERY_PORT))
+    except Exception as e:
+        print(f"[DISCOVERY ERROR] Could not bind UDP port {DISCOVERY_PORT}: {e}")
+        return
+    print(f"[DISCOVERY] Listening for ESP32 auto-discovery on UDP:{DISCOVERY_PORT}")
+    while True:
+        try:
+            data, addr = sock.recvfrom(1024)
+            if data == b"FORESTNET_DISCOVER":
+                sock.sendto(b"FORESTNET_HERE", addr)
+                print(f"[DISCOVERY] ESP32 found me from {addr[0]} -> replied")
+        except Exception as e:
+            print(f"[DISCOVERY ERROR] {e}")
+
+threading.Thread(target=udp_discovery_responder, daemon=True).start()
 
 # Watchdog Observer for proof folder logging
 class ProofWatchdog(FileSystemEventHandler):

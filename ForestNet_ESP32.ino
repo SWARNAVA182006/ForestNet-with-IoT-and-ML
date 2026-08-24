@@ -2,6 +2,7 @@
 #include <TinyGPSPlus.h>
 #include <HardwareSerial.h>
 #include <WiFi.h>
+#include <WiFiUdp.h>
 #include <HTTPClient.h>
 #include <ArduinoJson.h>
 
@@ -38,11 +39,10 @@ const char* WIFI_SSID     = "Motorola edge 40";
 const char* WIFI_PASSWORD = "Marvel@12345";
 
 /*
-   PC_IP = the IPv4 address shown by ipconfig on the laptop
-   running the Flask backend.
-   Current address: 10.81.193.60
+   PC_IP and TELEMETRY_ENDPOINT are now dynamically populated 
+   by the UDP discovery broadcast mechanism.
 */
-const char* PC_IP = "10.81.193.60";
+String PC_IP = "";
 
 
 /* ============================================================
@@ -51,8 +51,7 @@ const char* PC_IP = "10.81.193.60";
 
 const int SERVER_PORT = 5000;
 
-String TELEMETRY_ENDPOINT =
-  String("http://") + PC_IP + ":" + SERVER_PORT + "/api/telemetry";
+String TELEMETRY_ENDPOINT = "";
 
 
 /* ============================================================
@@ -119,8 +118,6 @@ void connectWiFi() {
     Serial.println("OK WIFI CONNECTED");
     Serial.print("ESP32 IP: ");
     Serial.println(WiFi.localIP());
-    Serial.print("Backend Endpoint: ");
-    Serial.println(TELEMETRY_ENDPOINT);
   }
   else {
     Serial.println("FAIL WIFI CONNECTION FAILED");
@@ -141,6 +138,63 @@ void maintainWiFi() {
     Serial.println("WiFi disconnected. Reconnecting...");
     connectWiFi();
   }
+}
+
+
+/* ============================================================
+   UDP DISCOVERY
+   ============================================================ */
+
+WiFiUDP udp;
+
+bool discoverBackend() {
+  if (WiFi.status() != WL_CONNECTED) {
+    Serial.println("Cannot discover backend: WiFi disconnected");
+    return false;
+  }
+  
+  IPAddress local = WiFi.localIP();
+  IPAddress broadcastIP = local;
+  broadcastIP[3] = 255;
+  
+  Serial.print("Sending UDP discovery broadcast to ");
+  Serial.print(broadcastIP);
+  Serial.println(":5006");
+  
+  udp.beginPacket(broadcastIP, 5006);
+  udp.print("FORESTNET_DISCOVER");
+  udp.endPacket();
+  
+  unsigned long startWait = millis();
+  while (millis() - startWait < 2000) {
+    int packetSize = udp.parsePacket();
+    if (packetSize) {
+      char replyBuffer[255];
+      int len = udp.read(replyBuffer, 254);
+      if (len > 0) {
+        replyBuffer[len] = '\0';
+      }
+      
+      String reply = String(replyBuffer);
+      reply.trim();
+      
+      if (reply == "FORESTNET_HERE") {
+        PC_IP = udp.remoteIP().toString();
+        TELEMETRY_ENDPOINT = "http://" + PC_IP + ":" + String(SERVER_PORT) + "/api/telemetry";
+        
+        Serial.println("OK BACKEND DISCOVERED!");
+        Serial.print("New Backend IP: ");
+        Serial.println(PC_IP);
+        Serial.print("New Endpoint: ");
+        Serial.println(TELEMETRY_ENDPOINT);
+        return true;
+      }
+    }
+    delay(10);
+  }
+  
+  Serial.println("FAIL Discovery timeout. No reply received.");
+  return false;
 }
 
 
@@ -225,6 +279,10 @@ bool sendTelemetry(
   Serial.print("FAIL TELEMETRY ERROR: ");
   Serial.println(http.errorToString(responseCode));
   http.end();
+  
+  Serial.println("Backend unreachable. Attempting UDP rediscovery...");
+  discoverBackend();
+  
   return false;
 }
 
@@ -315,6 +373,14 @@ void setup() {
   Serial.println("OK GPS MONITORING STARTED");
 
   connectWiFi();
+
+  Serial.println();
+  Serial.println("==========================================");
+  Serial.println("DISCOVERING BACKEND SERVER...");
+  Serial.println("==========================================");
+  while (!discoverBackend()) {
+    delay(2000);
+  }
 
   Serial.println();
   Serial.println("==========================================");
